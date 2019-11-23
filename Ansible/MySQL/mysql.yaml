@@ -9,8 +9,8 @@
     mysql_socket: '/var/run/mysqld/mysqld.sock'
     mysql_db_import: 'US_LOCATIONS'
   tasks:
-    - name: Setting DNS server...
-      shell: 'echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
+    #- name: Setting DNS server...
+    #  shell: 'echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
 
     - name: Installing MySQL server...
       package: name=mysql-server update_cache=yes state=latest
