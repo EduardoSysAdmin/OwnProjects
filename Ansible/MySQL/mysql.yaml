@@ -1,0 +1,98 @@
+---
+- hosts: clients
+  become: yes
+  vars:
+    mysql_cnf_path: '/etc/mysql/mariadb.conf.d/50-server.cnf'
+    mysql_cnf_path_backup: '/etc/mysql/mariadb.conf.d/50-server.cnf.back'
+    mysql_new_port: 3336
+    mysql_root_passwd: bolson
+    mysql_socket: '/var/run/mysqld/mysqld.sock'
+    mysql_db_import: 'US_LOCATIONS'
+  tasks:
+    - name: Setting DNS server...
+      shell: 'echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
+
+    - name: Installing MySQL server...
+      package: name=mysql-server update_cache=yes state=latest
+
+    - name: Installing Python features...
+      package: name=python-pip update_cache=yes state=latest
+
+    - name: Installing Python module required...
+      pip:
+        name: PyMySQL
+
+    - name: Creating default configuration backup...
+      copy:
+        remote_src: yes
+        src: '{{mysql_cnf_path}}'
+        dest: '{{mysql_cnf_path_backup}}'
+
+    - name: MySQL now listen on 3336...
+      replace:
+        path: '{{mysql_cnf_path}}'
+        regexp: '= 3306$'
+        replace: '= {{mysql_new_port}}'
+      notify: mysql-restart
+
+    - name: Root user now allow external connections...
+      shell: |
+       mysql -u root -e 'UPDATE mysql.user SET Password=PASSWORD("{{mysql_root_passwd}}") WHERE User="root";'
+    
+    - name: Root user now allow external connections...
+      shell: |
+       mysql -u root -e 'grant all privileges on *.* to "admin"@"%" identified by "1234" with grant option'
+
+
+    - name: MySQL listen external connections...
+      replace:
+        path: '{{mysql_cnf_path}}'
+        regexp: '= 127.0.0.1$'
+        replace: '= 0.0.0.0'
+      notify: mysql-restart  
+
+    - name: Clearing server conf file...
+      lineinfile:
+        path: '{{mysql_cnf_path}}'
+        regexp: '#'
+        state: absent
+    - name: Starting import process...
+      copy:
+        src: /root/Playbook/mysql/us_cities.sql
+        dest: /us_cities.sql
+    - name: Importing DB...
+      mysql_db:
+        login_user: root
+        login_password: '{{mysql_root_passwd}}'
+        name: '{{mysql_db_import}}'
+        state: present
+        target: '/us_cities.sql'
+        login_unix_socket: '/var/run/mysqld/mysqld.sock'
+      tags: import
+
+    - name: Creating users...
+      mysql_user:
+         login_user: root
+         name: "{{item.name}}"
+         host: "%"
+         password: "{{item.secret}}"
+         login_unix_socket: '/var/run/mysqld/mysqld.sock'
+         priv: "{{item.priv}}"
+         state: present
+      with_items:
+        - { name: Frodo, secret: secret, priv: '*.*:USAGE'}
+        - { name: Bilbo, secret: secret, priv: '*.*:USAGE'}
+        - { name: Leia, secret: secret, priv: "{{mysql_db_import}}.*:USAGE"}
+      tags: users  
+
+  handlers:
+   - name: mysql-restart
+     service:
+      name: mysql
+      state: restarted
+
+
+
+
+
+
