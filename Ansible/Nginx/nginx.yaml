@@ -1,0 +1,100 @@
+---
+- hosts: clients
+  become: yes
+  vars:
+    nginx_port: 8082
+    nginx_default_site_path: /etc/nginx/sites-available/default
+    nginx_version: latest
+    nginx_ssl_site_path: /etc/nginx/sites-available/default-ssl
+    nginx_ssl_port: 8084
+    cert_key: /etc/nginx/certs/eog-selfsigned.key
+    cert_crt: /etc/nginx/certs/eog-selfsigned.crt
+    nginx_ssl_site_name: default-ssl
+    nginx_ssl_root_directory: /var/www/ssl
+  tasks:
+
+    - name: Installing web service...
+      package: name=nginx update_cache=yes state='{{nginx_version}}'
+
+    - name: Nginx non secure server listen on port 8082...
+      replace:
+        path: '{{nginx_default_site_path}}'
+        regexp: '80 default_server;$'
+        replace: '{{nginx_port}} default_server;'
+    
+    - name: Creating SSL site file...
+      copy:
+        remote_src: yes
+        src: '{{nginx_default_site_path}}'
+        dest: '{{nginx_ssl_site_path}}'
+        owner: root
+        mode: 644
+
+    - name: Nginx ssl site listen on port 8084...
+      replace:
+        path: '{{nginx_ssl_site_path}}'
+        regexp: '8082 default_server;$'
+        replace: '{{nginx_ssl_port}} ssl;'
+
+    - name: Setting server name...
+      replace:
+        path: '{{nginx_ssl_site_path}}'
+        regexp: 'server_name _;$'
+        replace: 'server_name ssl_server;'
+    
+    - name: Creating certs directory...
+      file:
+        path: /etc/nginx/certs
+        state: directory
+        owner: root
+        mode: 644
+    
+    - name: Creating certs...
+      shell: ls /etc/nginx/certs/eog-selfsigned.key || openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/certs/eog-selfsigned.key -out /etc/nginx/certs/eog-selfsigned.crt -subj "/C=GB/ST=Málaga/L=Málaga/O=Global Security/OU=IT Department/CN=eog.com"
+    
+    - name: Adding certs to site configuration...      
+      lineinfile:
+        path: '{{nginx_ssl_site_path}}'
+        insertafter: ':8084 default_server;$'
+        line: '        ssl_certificate {{cert_crt}};'
+
+    - name: Adding certs to site configuration...      
+      lineinfile:
+        path: '{{nginx_ssl_site_path}}'
+        insertafter: 'ssl_certificate'
+        line: '        ssl_certificate_key {{cert_key}};'
+
+    - name: Setting site root directory...
+      replace:
+        path: "{{nginx_ssl_site_path}}"
+        regexp: '/var/www/html;$'
+        replace: '/var/www/ssl;'
+
+    - name: Clearing ssl site file...
+      lineinfile:
+        path: "{{nginx_ssl_site_path}}"    
+        regexp: '#'
+        state: absent
+
+    - name: Enabling SSL site...
+      shell: ls /etc/nginx/sites-enabled/"{{nginx_ssl_site_name}}" || ln -s "{{nginx_ssl_site_path}}" /etc/nginx/sites-enabled/"{{nginx_ssl_site_name}}"
+      notify: nginx-restart
+
+    - name: Creating root directory...
+      file:
+        path: "{{nginx_ssl_root_directory}}"
+        state: directory
+        owner: root
+        mode: 755
+
+    - name: Creating index...
+      shell: cp -r /var/www/html/* "{{nginx_ssl_root_directory}}"
+      
+    - name: Setting permissions...
+      shell: chmod 644 /var/www/ssl/* 
+
+  handlers:
+   - name: nginx-restart
+     service:
+      name: nginx
+      state: restarted
