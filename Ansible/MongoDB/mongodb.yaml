@@ -2,13 +2,16 @@
 - hosts: clients
   become: yes
   vars:
-
+    mongo_conf_file: "/etc/mongod.conf"
   tasks:
     - name: Setting DNS server...
       shell: 'echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
-    - name: Installing software-propeties-common...
+    - name: Installing packages needed...
       package: name={{item}} state=latest update_cache=yes
-      with_items: {'software-properties-common','dirmngr','gpg'}
+      with_items: {'software-properties-common','dirmngr','gpg', 'python-pip'}
+    - name: Installing Python module needed...
+      pip:
+        name: 'pymongo'
     - name: Adding repo key...
       apt_key:
         keyserver: 'hkp://keyserver.ubuntu.com:80'
@@ -18,27 +21,30 @@
         repo: 'deb http://repo.mongodb.org/apt/debian stretch/mongodb-org/4.0 main'
     - name: Installing MongoDB...
       package: name=mongodb-org state=latest update_cache=yes
-
-    #Instala: software-propeties-common y dirmngr
-    #apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
-    #add-apt-repository 'deb http://repo.mongodb.org/apt/debian stretch/mongodb-org/4.0 main'
-    #apt update
-    #apt install mongodb-org
-    #systemctl start mongod
-    #systemctl enable mongod
-    #mongo --eval 'db.runCommand({ connectionStatus: 1 })'
-    #donde:
-    #security:
-      #authorization: enabled
-
-    #restart
-
-    #mongo
-    #use admin
-    #db.createUser(
-  #{
-  #  user: "mongoAdmin", 
-  #  pwd: "changeMe", 
-  #  roles: [ { role: "userAdminAnyDatabase", db: "admin" } ]
-  #}
-#)
+    - name: Allow authorization...
+      replace:
+        regexp: '^#security'
+        path: "{{mongo_conf_file}}"
+        replace: 'security'
+    - name: Allowing...   
+      lineinfile:
+        path: "{{mongo_conf_file}}"
+        insertafter: 'security:'
+        line: '  authorization: enabled' 
+    - name: MongoDB listen external connections...
+      replace:
+        path: "{{mongo_conf_file}}"    
+        regexp: '127.0.0.1'
+        replace: '0.0.0.0'
+    - name: mongo-restart
+      systemd:
+        name: mongod
+        state: restarted
+        enabled: yes        
+    - name: Creating admin user...
+      mongodb_user:
+        database: admin
+        name: mongoAdmin
+        password: 'bolson'
+        roles: userAdminAnyDatabase
+        state: present    
