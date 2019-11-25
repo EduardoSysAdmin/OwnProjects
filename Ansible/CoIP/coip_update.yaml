@@ -1,0 +1,31 @@
+---
+- hosts: gastel
+  become: yes
+  vars:
+    backup_dir: '/este/es/el/path'
+  tasks: 
+  - name: Parando tomcat
+    systemd:
+      name: tomcat
+      state: stopped  
+  - name: Creando directorio para backup...
+      file:
+        state: directory
+        path: {{backup_dir}}
+    - name: Guardando un backup...
+      copy:
+        path: /el/war
+        dest: {{backup_dir}}
+    - name: Limpiando webapps...
+      file:
+        state: absent
+        path: /webapps/tarificador
+    - name: Copiando el nuevo war...
+      copy:
+        remote_src: yes
+        path: mi.war
+        dest: webapps/mi.war
+    - name: Iniciando tomcat...
+      systemd:
+        name: tomcat
+        state: started
