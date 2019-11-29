@@ -27,6 +27,5 @@ if [ -z "$SFTPUSER" ] || [ -z "$SFTPSERVER" ] || [ -z "$DMP" ] || [ -z "$CDRS" ]
         echo "Al menos el valor de una de las variables es null.\nHay que declarar los parametros --sftp-user, --sftp-server, --dmp y --cdrs.\nSaliendo..."
         
     else
-        echo "$SFTPUSER"
-        echo "$CDRS"
+        echo "Ejecuta script..."
 fi
