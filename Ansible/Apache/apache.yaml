@@ -1,0 +1,18 @@
+---
+- hosts: clients
+  become: yes
+  roles:
+     - Apache-Role
+  tasks:
+    - name: This host listen in port 8080...
+      replace:
+        regexp: '^Listen 80$'
+        replace: 'Listen {{apache_port}}'
+        path: /etc/apache2/ports.conf
+    - name: This host listen in port 8080....
+      replace:
+        regexp: '^<VirtualHost *:80'
+        replace: '<VirtualHost *:{{apache_port}}'
+        path: /etc/apache2/sites-available/000-default.conf
+      notify:
+        - Restart-Apache

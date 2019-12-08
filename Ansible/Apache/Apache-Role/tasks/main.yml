@@ -1,0 +1,11 @@
+---
+- name: Setting DNS server...
+  shell: echo "nameserver 8.8.8.8" > /etc/resolv.conf
+- name: Removing repositories from cdrom
+  replace:
+    regexp: '^deb cdrom'
+    replace: '#deb cdrom'
+    path: /etc/apt/sources.list
+- name: Installing web-server Apache2...
+  package: name=apache2 update_cache=yes state=latest
+
